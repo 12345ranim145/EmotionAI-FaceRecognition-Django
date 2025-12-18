@@ -1,0 +1,68 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<h1 class="text-center">ASMR Tactical System</h1>
+<div class="text-center">
+    <video id="video" width="1280" height="720" autoplay class="border border-success"></video>
+    <canvas id="canvas" width="1280" height="720" style="display:none;"></canvas>
+    <img id="processedFrame" width="1280" height="720" style="display:none;">  <!-- Pour afficher frame traité -->
+    <button id="startASMR" class="btn btn-primary mt-3">Démarrer ASMR</button>
+    <audio id="asmrAudio" controls style="display:none;"></audio>  <!-- Pour jouer le son ASMR -->
+</div>
+<div id="message" class="alert mt-3" style="display:none;"></div>
+
+<script>
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const context = canvas.getContext('2d');
+    const processedImg = document.getElementById('processedFrame');
+    const startBtn = document.getElementById('startASMR');
+    const audio = document.getElementById('asmrAudio');
+    const messageDiv = document.getElementById('message');
+
+    let intervalId;
+
+    startBtn.addEventListener('click', async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            video.srcObject = stream;
+            startBtn.disabled = true;
+            intervalId = setInterval(processFrame, 100);  // Envoyer frames toutes les 100ms
+        } catch (err) {
+            messageDiv.textContent = 'Erreur caméra: ' + err;
+            messageDiv.classList.add('alert-danger');
+            messageDiv.style.display = 'block';
+        }
+    });
+
+    function processFrame() {
+        context.drawImage(video, 0, 0, 1280, 720);
+        const imageData = canvas.toDataURL('image/jpeg', 0.5).split(',')[1];  // Base64 compressé
+        fetch('/process_frame/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+            body: JSON.stringify({ image: imageData })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.processed_image) {
+                processedImg.src = 'data:image/jpeg;base64,' + data.processed_image;
+                processedImg.style.display = 'block';
+                video.style.display = 'none';  // Afficher l'image traitée au lieu de la vidéo brute
+            }
+            if (data.emotion && data.audio_url) {
+                audio.src = data.audio_url;
+                audio.play();  // Jouer le son ASMR
+            }
+            if (data.message) {
+                messageDiv.textContent = data.message;
+                messageDiv.style.display = 'block';
+            }
+        });
+    }
+
+    // Arrêter sur unload
+    window.addEventListener('beforeunload', () => clearInterval(intervalId));
+</script>
+{% endblock %}

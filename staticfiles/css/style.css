@@ -1,0 +1,10 @@
+body {
+    background-color: #121212;
+    color: #ffffff;
+}
+.btn-primary {
+    background-color: #0d6efd;
+}
+video, img {
+    border-radius: 10px;
+}
